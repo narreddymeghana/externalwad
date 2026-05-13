@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Session Tracking Simulator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      color: #1a1d23;
+      min-height: 100vh;
+      padding: 32px 24px;
+    }
+
+    /* ── Header ── */
+    header {
+      max-width: 1100px;
+      margin: 0 auto 28px;
+    }
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: -0.3px;
+    }
+    header p.subtitle {
+      margin-top: 4px;
+      font-size: 0.875rem;
+      color: #6b7280;
+    }
+
+    /* ── Action bar ── */
+    .actions {
+      max-width: 1100px;
+      margin: 0 auto 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button {
+      padding: 8px 16px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #374151;
+      font-size: 0.8125rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    button:hover {
+      background: #f9fafb;
+      border-color: #9ca3af;
+      color: #111827;
+    }
+    button.reset {
+      background: #fef2f2;
+      border-color: #fca5a5;
+      color: #b91c1c;
+      margin-left: auto;
+    }
+    button.reset:hover {
+      background: #fee2e2;
+      border-color: #f87171;
+    }
+
+    /* ── Status bar ── */
+    .status-bar {
+      max-width: 1100px;
+      margin: 0 auto 24px;
+      background: #fff;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 0.875rem;
+      color: #374151;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .status-bar::before {
+      content: '';
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #3b82f6;
+      flex-shrink: 0;
+    }
+
+    /* ── Grid layout ── */
+    .grid {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
+    }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-1 { grid-template-columns: 1fr; }
+
+    /* ── Cards ── */
+    .card {
+      background: #ffffff;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 12px 16px;
+      border-bottom: 1.5px solid #f3f4f6;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-header .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-blue   { background: #3b82f6; }
+    .dot-violet { background: #8b5cf6; }
+    .dot-amber  { background: #f59e0b; }
+    .dot-green  { background: #22c55e; }
+    .dot-slate  { background: #64748b; }
+
+    .card-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #374151;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .card-body {
+      padding: 14px 16px;
+      min-height: 72px;
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      color: #374151;
+    }
+
+    /* ── Log panels (monospace) ── */
+    .log-body {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.775rem;
+      line-height: 1.7;
+      background: #fafafa;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .log-body div { padding: 1px 0; }
+
+    /* ── KV pairs (cookie jar / session store) ── */
+    .card-body b { color: #1d4ed8; font-weight: 600; }
+    .card-body i { color: #9ca3af; font-style: italic; }
+    .card-body hr {
+      border: none;
+      border-top: 1px dashed #e5e7eb;
+      margin: 8px 0;
+    }
+
+    /* ── Tags ── */
+    .tag-req  { color: #1d4ed8; font-weight: 700; }
+    .tag-res  { color: #15803d; font-weight: 700; }
+    .tag-err  { color: #b91c1c; font-weight: 700; }
+
+    /* ── Transaction log ── */
+    #txn-log div {
+      padding: 6px 0;
+      border-bottom: 1px solid #f3f4f6;
+      font-size: 0.8125rem;
+      color: #374151;
+    }
+    #txn-log div:last-child { border-bottom: none; }
+
+    @media (max-width: 680px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>HTTP Session Tracking — Cookie Simulator</h1>
+    <p class="subtitle">Simulate full HTTP round-trips: login, session cookies, authenticated requests, and logout.</p>
+  </header>
+
+  <div class="actions">
+    <button onclick="doRequest('GET /login')">GET /login</button>
+    <button onclick="doRequest('POST /login')">POST /login</button>
+    <button onclick="doRequest('GET /dashboard')">GET /dashboard</button>
+    <button onclick="doRequest('POST /transaction')">POST /transaction</button>
+    <button onclick="doRequest('POST /logout')">POST /logout</button>
+    <button class="reset" onclick="resetAll()">Reset</button>
+  </div>
+
+  <div class="status-bar">
+    <span id="status">Click a request to simulate an HTTP round-trip.</span>
+  </div>
+
+  <div class="grid grid-2" style="margin-bottom:16px;">
+    <div class="card">
+      <div class="card-header">
+        <span class="dot dot-blue"></span>
+        <span class="card-title">Client — Cookie Jar</span>
+      </div>
+      <div class="card-body" id="cookie-jar"><i>No cookies yet.</i></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="dot dot-violet"></span>
+        <span class="card-title">Server — Session Store</span>
+      </div>
+      <div class="card-body" id="session-store"><i>No active sessions.</i></div>
+    </div>
+  </div>
+
+  <div class="grid grid-2" style="margin-bottom:16px;">
+    <div class="card">
+      <div class="card-header">
+        <span class="dot dot-amber"></span>
+        <span class="card-title">HTTP Request</span>
+      </div>
+      <div class="card-body log-body" id="req-log"><i>Waiting...</i></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="dot dot-green"></span>
+        <span class="card-title">HTTP Response</span>
+      </div>
+      <div class="card-body log-body" id="res-log"><i>Waiting...</i></div>
+    </div>
+  </div>
+
+  <div class="grid grid-1">
+    <div class="card">
+      <div class="card-header">
+        <span class="dot dot-slate"></span>
+        <span class="card-title">Transaction History</span>
+      </div>
+      <div class="card-body" id="txn-log"><i>No transactions yet.</i></div>
+    </div>
+  </div>
+
+  <script>
+    const state = { cookieJar: {}, sessions: {}, txnCount: 0 };
+
+    function uid() { return Math.random().toString(36).slice(2, 10).toUpperCase(); }
+    function now() { return new Date().toLocaleTimeString(); }
+
+    function colorTag(raw) {
+      return raw
+        .replace(/\[REQ\]/g, '<span class="tag-req">[REQ]</span>')
+        .replace(/\[RES\]/g, '<span class="tag-res">[RES]</span>')
+        .replace(/\[ERR\]/g, '<span class="tag-err">[ERR]</span>');
+    }
+
+    function renderKV(obj) {
+      const entries = Object.entries(obj);
+      if (!entries.length) return '<i>Empty.</i>';
+      return entries.map(([k, v]) =>
+        `<div><b>${k}</b>: ${typeof v === 'object' ? JSON.stringify(v) : v}</div>`
+      ).join('');
+    }
+
+    function renderSessions() {
+      const entries = Object.entries(state.sessions);
+      if (!entries.length) return '<i>No active sessions.</i>';
+      return entries.map(([sid, s]) => `
+        <div>
+          <div><b>sid</b>: ${sid}</div>
+          <div><b>user</b>: ${s.user}</div>
+          <div><b>created</b>: ${s.created}</div>
+          <div><b>txns</b>: ${s.txns}</div>
+        </div>`).join('<hr>');
+    }
+
+    function setReq(lines) {
+      document.getElementById('req-log').innerHTML = lines.map(l => `<div>${colorTag(l)}</div>`).join('');
+    }
+    function setRes(lines) {
+      document.getElementById('res-log').innerHTML = lines.map(l => `<div>${colorTag(l)}</div>`).join('');
+    }
+    function addTxn(msg) {
+      const el = document.getElementById('txn-log');
+      if (el.querySelector('i')) el.innerHTML = '';
+      el.innerHTML = `<div>[${now()}] ${msg}</div>` + el.innerHTML;
+    }
+    function setStatus(msg) { document.getElementById('status').textContent = msg; }
+    function refresh() {
+      document.getElementById('cookie-jar').innerHTML = renderKV(state.cookieJar);
+      document.getElementById('session-store').innerHTML = renderSessions();
+    }
+
+    function tag(type, text) { return `[${type}] ${text}`; }
+
+    function doRequest(action) {
+      const sid = state.cookieJar['session_id'];
+      const session = sid ? state.sessions[sid] : null;
+
+      if (action === 'GET /login') {
+        setReq([tag('REQ', 'GET /login HTTP/1.1'), 'Host: app.local', sid ? `Cookie: session_id=${sid}` : '(no cookie sent)']);
+        setRes([tag('RES', '200 OK'), 'Content-Type: text/html', '(Login page returned)']);
+        setStatus('Server returned the login page. No session created yet.');
+        refresh(); return;
+      }
+
+      if (action === 'POST /login') {
+        if (session) {
+          setReq([tag('REQ', 'POST /login HTTP/1.1'), `Cookie: session_id=${sid}`, 'body: user=dinesh&pass=***']);
+          setRes([tag('ERR', '302 Found'), 'Location: /dashboard', '(already logged in — redirect)']);
+          setStatus('Already have a valid session. Redirecting to /dashboard.');
+          refresh(); return;
+        }
+        const newSid = uid();
+        state.sessions[newSid] = { user: 'dinesh', created: now(), txns: 0 };
+        state.cookieJar['session_id'] = newSid;
+        state.cookieJar['Path'] = '/';
+        state.cookieJar['HttpOnly'] = 'true';
+        setReq([tag('REQ', 'POST /login HTTP/1.1'), 'Content-Type: application/x-www-form-urlencoded', 'body: user=dinesh&pass=***', '(no cookie sent)']);
+        setRes([tag('RES', '302 Found'), `Set-Cookie: session_id=${newSid}; Path=/; HttpOnly`, 'Location: /dashboard', '(session created, cookie set)']);
+        addTxn(`Session created → sid=${newSid}`);
+        setStatus(`Login OK. Server created session ${newSid} and issued Set-Cookie header.`);
+        refresh(); return;
+      }
+
+      if (action === 'GET /dashboard') {
+        if (!session) {
+          setReq([tag('REQ', 'GET /dashboard HTTP/1.1'), '(no session cookie)']);
+          setRes([tag('ERR', '302 Found'), 'Location: /login', '(not authenticated)']);
+          setStatus('No session cookie found. Server redirects to /login.');
+          refresh(); return;
+        }
+        setReq([tag('REQ', 'GET /dashboard HTTP/1.1'), `Cookie: session_id=${sid}`]);
+        setRes([tag('RES', '200 OK'), `X-User: ${session.user}`, '(dashboard returned)']);
+        setStatus(`Cookie sent → server looked up sid=${sid} → found user "${session.user}" → 200 OK.`);
+        refresh(); return;
+      }
+
+      if (action === 'POST /transaction') {
+        if (!session) {
+          setReq([tag('REQ', 'POST /transaction HTTP/1.1'), '(no session cookie)']);
+          setRes([tag('ERR', '401 Unauthorized'), '{"error":"not authenticated"}']);
+          setStatus('No active session. Transaction rejected with 401.');
+          refresh(); return;
+        }
+        state.txnCount++;
+        session.txns++;
+        const amount = (Math.random() * 900 + 100).toFixed(2);
+        const txnId = 'TXN-' + uid();
+        setReq([tag('REQ', 'POST /transaction HTTP/1.1'), `Cookie: session_id=${sid}`, `body: amount=${amount}&to=merchant_42`]);
+        setRes([tag('RES', '200 OK'), `{"txn_id":"${txnId}","amount":"₹${amount}","status":"success"}`]);
+        addTxn(`${txnId} — ₹${amount} by ${session.user} (session ${sid})`);
+        setStatus(`Transaction ${txnId} authorised using session ${sid}. No re-login required.`);
+        refresh(); return;
+      }
+
+      if (action === 'POST /logout') {
+        if (!session) {
+          setReq([tag('REQ', 'POST /logout HTTP/1.1'), '(nothing to log out)']);
+          setRes([tag('ERR', '400 Bad Request'), '{"error":"no session"}']);
+          setStatus('No session to destroy.');
+          refresh(); return;
+        }
+        delete state.sessions[sid];
+        setReq([tag('REQ', 'POST /logout HTTP/1.1'), `Cookie: session_id=${sid}`]);
+        setRes([tag('RES', '200 OK'), `Set-Cookie: session_id=; Max-Age=0; Path=/`, '(session destroyed, cookie cleared)']);
+        addTxn(`Session ${sid} destroyed (logout)`);
+        delete state.cookieJar['session_id'];
+        delete state.cookieJar['Path'];
+        delete state.cookieJar['HttpOnly'];
+        setStatus(`Session ${sid} deleted from server store. Cookie cleared via Max-Age=0.`);
+        refresh(); return;
+      }
+    }
+
+    function resetAll() {
+      state.cookieJar = {};
+      state.sessions = {};
+      state.txnCount = 0;
+      document.getElementById('req-log').innerHTML = '<i>Waiting...</i>';
+      document.getElementById('res-log').innerHTML = '<i>Waiting...</i>';
+      document.getElementById('txn-log').innerHTML = '<i>No transactions yet.</i>';
+      setStatus('Reset. Start fresh with GET /login.');
+      refresh();
+    }
+
+    refresh();
+  </script>
+</body>
+</html>
